@@ -1,1 +1,0 @@
-[![Build Status](https://dev.azure.com/sushant1505/IPTreatmentManagement/_apis/build/status/i-sushant.AuthorizationService?branchName=master)](https://dev.azure.com/sushant1505/IPTreatmentManagement/_build/latest?definitionId=34&branchName=master)
