@@ -16,6 +16,9 @@ variables:
   dockerfilePath: "$(Build.SourcesDirectory)/AuthorizationMicroservice/Dockerfile"
   tag: "$(Build.BuildId)"
   imagePullSecret: "ctstrainingacrd22d-auth"
+  solution: 'AuthorizationMicroservice/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
 
   # Agent VM image name
   vmImageName: "ubuntu-latest"
@@ -29,11 +32,16 @@ stages:
         pool:
           vmImage: $(vmImageName)
         steps:
-          - task: DotNetCoreCLI@2
-            displayName: "Project Build"
+          - task: NuGetToolInstaller@1
+          - task: NuGetCommand@2
             inputs:
-              command: "build"
-              projects: "$(Build.SourcesDirectory)/AuthorizationMicroservice/"
+              restoreSolution: '$(solution)'
+          - task: VSBuild@1
+            inputs:
+              solution: '$(solution)'
+              msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\WebApp.zip" /p:DeployIisAppPath="Default Web Site"'
+              platform: '$(buildPlatform)'
+              configuration: '$(buildConfiguration)'
           - task: VSTest@2
             displayName: "Server unit tests"
             inputs:
@@ -45,8 +53,8 @@ stages:
               searchFolder: "$(System.DefaultWorkingDirectory)"
               runTestsInIsolation: true
               codeCoverageEnabled: false
-              platform: "Any CPU"
-              configuration: "Release"
+              platform: '$(buildPlatform)'
+              configuration: '$(buildConfiguration)'
           - task: Docker@2
             displayName: Build and push an image to container registry
             inputs:
