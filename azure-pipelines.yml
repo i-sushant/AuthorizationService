@@ -3,77 +3,92 @@
 # https://docs.microsoft.com/azure/devops/pipelines/languages/docker
 
 trigger:
-- master
+  - master
 
 resources:
-- repo: self
+  - repo: self
 
 variables:
-
   # Container registry service connection established during pipeline creation
-  dockerRegistryServiceConnection: '1c7a7ab1-d16c-487e-8d0a-9d45c74903c6'
-  imageRepository: 'authorizationservice'
-  containerRegistry: 'ctstrainingacr.azurecr.io'
-  dockerfilePath: '$(Build.SourcesDirectory)/AuthorizationMicroservice/Dockerfile'
-  tag: '$(Build.BuildId)'
-  imagePullSecret: 'ctstrainingacrd22d-auth'
+  dockerRegistryServiceConnection: "1c7a7ab1-d16c-487e-8d0a-9d45c74903c6"
+  imageRepository: "authorizationservice"
+  containerRegistry: "ctstrainingacr.azurecr.io"
+  dockerfilePath: "$(Build.SourcesDirectory)/AuthorizationMicroservice/Dockerfile"
+  tag: "$(Build.BuildId)"
+  imagePullSecret: "ctstrainingacrd22d-auth"
 
   # Agent VM image name
-  vmImageName: 'ubuntu-latest'
-
+  vmImageName: "ubuntu-latest"
 
 stages:
-- stage: Build
-  displayName: Build stage
-  jobs:
-  - job: Build
-    displayName: Build
-    pool:
-      vmImage: $(vmImageName)
-    steps:
-    - task: Docker@2
-      displayName: Build and push an image to container registry
-      inputs:
-        command: buildAndPush
-        repository: $(imageRepository)
-        dockerfile: $(dockerfilePath)
-        containerRegistry: $(dockerRegistryServiceConnection)
-        tags: |
-          $(tag)
-
-    - upload: manifests
-      artifact: manifests
-
-- stage: Deploy
-  displayName: Deploy stage
-  dependsOn: Build
-
-  jobs:
-  - deployment: Deploy
-    displayName: Deploy
-    pool:
-      vmImage: $(vmImageName)
-    environment: 'isushantAuthorizationService.project'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: KubernetesManifest@0
-            displayName: Create imagePullSecret
+  - stage: Build
+    displayName: Build stage
+    jobs:
+      - job: Build
+        displayName: Build
+        pool:
+          vmImage: $(vmImageName)
+        steps:
+          - task: DotNetCoreCLI@2
+            displayName: "Project Build"
             inputs:
-              action: createSecret
-              secretName: $(imagePullSecret)
-              dockerRegistryEndpoint: $(dockerRegistryServiceConnection)
-
-          - task: KubernetesManifest@0
-            displayName: Deploy to Kubernetes cluster
+              command: "build"
+              projects: "$(Build.SourcesDirectory)/AuthorizationMicroservice/"
+          - task: VSTest@2
+            displayName: "Server unit tests"
             inputs:
-              action: deploy
-              manifests: |
-                $(Pipeline.Workspace)/manifests/deployment.yml
-                $(Pipeline.Workspace)/manifests/service.yml
-              imagePullSecrets: |
-                $(imagePullSecret)
-              containers: |
-                $(containerRegistry)/$(imageRepository):$(tag)
+              testSelector: "testAssemblies"
+              testAssemblyVer2: |
+                **\*Microservice.*test*.dll
+                !**\*TestAdapter.dll
+                !**\obj\**
+              searchFolder: "$(System.DefaultWorkingDirectory)"
+              runTestsInIsolation: true
+              codeCoverageEnabled: false
+              platform: "Any CPU"
+              configuration: "Release"
+          - task: Docker@2
+            displayName: Build and push an image to container registry
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)
+              dockerfile: $(dockerfilePath)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
 
+          - upload: manifests
+            artifact: manifests
+
+  - stage: Deploy
+    displayName: Deploy stage
+    dependsOn: Build
+
+    jobs:
+      - deployment: Deploy
+        displayName: Deploy
+        pool:
+          vmImage: $(vmImageName)
+        environment: "isushantAuthorizationService.project"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: KubernetesManifest@0
+                  displayName: Create imagePullSecret
+                  inputs:
+                    action: createSecret
+                    secretName: $(imagePullSecret)
+                    dockerRegistryEndpoint: $(dockerRegistryServiceConnection)
+
+                - task: KubernetesManifest@0
+                  displayName: Deploy to Kubernetes cluster
+                  inputs:
+                    action: deploy
+                    manifests: |
+                      $(Pipeline.Workspace)/manifests/deployment.yml
+                      $(Pipeline.Workspace)/manifests/service.yml
+                    imagePullSecrets: |
+                      $(imagePullSecret)
+                    containers: |
+                      $(containerRegistry)/$(imageRepository):$(tag)
