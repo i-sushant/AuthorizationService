@@ -21,7 +21,8 @@ variables:
   buildConfiguration: 'Release'
 
   # Agent VM image name
-  vmImageName: "ubuntu-latest"
+  vmImageName: "windows-latest"
+  #vmImageNameDeploy: "ubuntu-latest"
 
 stages:
   - stage: Build
